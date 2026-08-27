@@ -171,10 +171,10 @@ User Turn: "The promotional code is SUMMER20"
 User Message:
 [PRIOR STATE]:
 {
-  "active_intents": ["PROMO_CODE_ERRORS"],
-  "primary_focus_intent": "PROMO_CODE_ERRORS",
+  "active_intents": [""],
+  "primary_focus_intent": "",
   "global_order_id": null
 }
 
-Conversation History: "User: Hi, Could you please help diagnose the promotional code errors while placing order ?\n System: Could you please share the promotional code?"
-User Turn: "The promotional code is WINTER10"
+Conversation History: ""
+User Turn: "Could you please change the delivery address for the ORD#270820262230 ?"
