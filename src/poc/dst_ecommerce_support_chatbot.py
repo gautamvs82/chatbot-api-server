@@ -62,24 +62,28 @@ class SupportChatBot(object):
         print("Current state:", self.current_state.model_dump_json(indent=2))
         print("Processing message:", user_message)
 
-        structured_llm = self.base_llm.with_structured_output(SupportChatBotState)
-        first_response = SupportChatBotState()
-        first_response.active_intents.append("PROMO_CODE_ERRORS")
-        first_response.primary_focus_intent = "PROMO_CODE_ERRORS"
-        first_response.promo_code_errors.status = TaskStatus.COLLECTING_SLOTS
+        structured_llm = self.base_llm.with_structured_output(SupportChatBotState, method="json_mode")
 
         fpr = open(self.UPDATE_STATE_PROMPT_FILE_NAME, "r")
         system_prompt = fpr.read()
         fpr.close()
+        conversation_history = " ".join(map(lambda x: "%s: %s" % (x[0], x[1]), self.conversation_history[:6]))
+        state_json = self.current_state.model_dump_json(indent=2)
 
-        payload = {
-            "current_state_frame": self.current_state.model_dump(),
-            "latest_user_utterance": user_message
-        }
+        # Build formatted text cleanly
+        raw_message = (
+            f"[PRIOR STATE]:\n{state_json}\n\n"
+            f'Conversation History: "{conversation_history}"\n'
+            f'User Turn: "{user_message}"'
+        )
+
+        # Convert raw newlines into standard escaped sequence or normalize
+        human_message = raw_message.encode('utf-8').decode('unicode_escape')
+        print("human_message:", human_message)
 
         messages = [
             SystemMessage(content=system_prompt),
-            HumanMessage(content=json.dumps(payload, indent=2))
+            HumanMessage(content=human_message)
         ]
 
         # 4. Invoke local model and return instantiated Pydantic object
@@ -90,10 +94,14 @@ class SupportChatBot(object):
 
     def validate_and_correct(self, updated_state):
         if updated_state.primary_focus_intent == "PROMO_CODE_ERRORS":
+            if updated_state.promo_code_errors.status == TaskStatus.NOT_STARTED:
+                updated_state.promo_code_errors.status = TaskStatus.COLLECTING_SLOTS
             if (updated_state.promo_code_errors.status == TaskStatus.COLLECTING_SLOTS and
                     updated_state.promo_code_errors.promo_code is not None):
                 updated_state.promo_code_errors.status = TaskStatus.CHECKING_WITH_BACKEND
         elif updated_state.primary_focus_intent == "CHANGE_DELIVERY_ADDRESS":
+            if updated_state.change_delivery_address.status == TaskStatus.NOT_STARTED:
+                updated_state.change_delivery_address.status = TaskStatus.COLLECTING_SLOTS
             if (updated_state.change_delivery_address.status == TaskStatus.COLLECTING_SLOTS and
                     updated_state.change_delivery_address.order_id is not None and
                     updated_state.change_delivery_address.new_address is not None):
@@ -130,7 +138,9 @@ class SupportChatBot(object):
             if self.current_state.promo_code_errors.status == TaskStatus.COLLECTING_SLOTS:
                 if self.current_state.promo_code_errors.promo_code is None:
                     responses.append("Could you please share the promo code ?")
-            elif self.current_state.promo_code_errors.status == TaskStatus.CHECKING_WITH_BACKEND:
+                else:
+                    self.current_state.promo_code_errors.status = TaskStatus.CHECKING_WITH_BACKEND
+            if self.current_state.promo_code_errors.status == TaskStatus.CHECKING_WITH_BACKEND:
                 responses.append("I'm checking with the backend ...")
                 promo_code_policy = self.get_promo_code_policy(self.current_state.promo_code_errors.promo_code)
                 print("promo_code_policy:", promo_code_policy)
@@ -147,8 +157,12 @@ class SupportChatBot(object):
                     missing_fields.append("order id")
                 if self.current_state.change_delivery_address.new_address is None:
                     missing_fields.append("delivery address")
-                responses.append("Could you please share %s ?" % " and ".join(missing_fields))
-            elif self.current_state.change_delivery_address.status == TaskStatus.CHECKING_WITH_BACKEND:
+                if missing_fields:
+                    responses.append("Could you please share %s ?" % " and ".join(missing_fields))
+                else:
+                    self.current_state.change_delivery_address.status = TaskStatus.CHECKING_WITH_BACKEND
+
+            if self.current_state.change_delivery_address.status == TaskStatus.CHECKING_WITH_BACKEND:
                 responses.append("I'm checking with the backend ...")
                 (is_eligible, reason) = self.is_eligibile_for_address_change(self.current_state.change_delivery_address.order_id)
                 self.current_state.change_delivery_address.is_address_eligible_for_change = is_eligible
@@ -177,9 +191,11 @@ class SupportChatBot(object):
     def respond(self, user_message):
         updated_state = self.update_state(user_message)
         self.validate_and_correct(updated_state)
-        bot_response = self.generate_responses()
-        self.conversation_history.append(bot_response)
-        return bot_response
+        bot_responses = self.generate_responses()
+        self.conversation_history.append(("User", user_message))
+        for bot_response in bot_responses:
+            self.conversation_history.append(("System", bot_response))
+        return bot_responses
 
 if __name__ == '__main2__':
     support_chatbot = SupportChatBot()
@@ -207,6 +223,23 @@ if __name__ == '__main__':
 
     user_message = "My order id is ORD#20260829113300 and the new address is Satyam Park, 80 Feet Road, Rajkot 360003"
     print("User: ", user_message)
+    bot_responses = support_chatbot.respond(user_message)
+    for bot_response in bot_responses:
+        print("Bot: ", bot_response)
+
+
+if __name__ == '__main3__':
+    support_chatbot = SupportChatBot()
+    user_message = "I want to change the delivery address for my last order"
+    print("User: ", user_message)
+    #user_message = sys.stdin.readline().strip()
+    bot_responses = support_chatbot.respond(user_message)
+    for bot_response in bot_responses:
+        print("Bot: ", bot_response)
+
+    user_message = "Could you please help me diagnose promo code errors first ?"
+    print("User: ", user_message)
+    # user_message = sys.stdin.readline().strip()
     bot_responses = support_chatbot.respond(user_message)
     for bot_response in bot_responses:
         print("Bot: ", bot_response)

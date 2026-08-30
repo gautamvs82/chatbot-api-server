@@ -86,7 +86,7 @@ User Turn: "Hi, order ORD-88392 is running late. Can I change the delivery addre
   }
 }
 
-Conversation History: "User: Hi, order ORD-88392 is running late. Can I change the delivery address to 100 Main St, 10001?\nSystem: I checked ORD-88392: Order is already out for delivery. Address change ineligible."
+Conversation History: "User: Hi, order ORD-88392 is running late. Can I change the delivery address to 100 Main St, 10001? System: I checked ORD-88392: Order is already out for delivery. Address change ineligible."
 User Turn: "Ok, can I know the delay cause for the delivery ?"
 
 [EXPECTED OUTPUT]:
@@ -151,7 +151,7 @@ User Turn: "Hi, I'm trying to apply the promotional code, but getting error"
   }
 }
 
-Conversation History: "User: Hi, I'm trying to apply the promotional code, but getting error\nSystem: Could you please share the promotional code, you are trying to apply?"
+Conversation History: "User: Hi, I'm trying to apply the promotional code, but getting error System: Could you please share the promotional code, you are trying to apply?"
 User Turn: "The promotional code is SUMMER20"
 
 [EXPECTED OUTPUT]:
@@ -166,3 +166,5 @@ User Turn: "The promotional code is SUMMER20"
     "promo_code": "SUMMER20"
   }
 }
+
+-----
