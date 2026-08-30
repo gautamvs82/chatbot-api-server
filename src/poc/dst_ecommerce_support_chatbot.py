@@ -22,6 +22,7 @@ class TrackDeliveryDelaySlots(BaseModel):
 
 class ChangeDeliveryAddressSlots(BaseModel):
     status: TaskStatus = TaskStatus.NOT_STARTED
+    order_id: Optional[str] = None
     new_address: Optional[str] = None
     is_address_eligible_for_change: Optional[bool] = None  # Depends on order shipment status
 
@@ -48,7 +49,6 @@ class SupportChatBot(object):
     def __init__(self):
         self.conversation_history = []
         self.current_state = SupportChatBotState()
-        self.prev_state = self.current_state.model_copy(deep=True)
         self.model_name = "llama3.1:8b"
         self.base_llm = ChatOllama(
             model=self.model_name,
@@ -59,8 +59,7 @@ class SupportChatBot(object):
         self.UPDATE_STATE_PROMPT_FILE_NAME= "./resources/dst_ecommerce_support_chatbot_prompt.txt"
 
     def update_state(self, user_message):
-        print("Prev state:", self.prev_state.model_dump())
-        print("Current state:", self.current_state.model_dump())
+        print("Current state:", self.current_state.model_dump_json(indent=2))
         print("Processing message:", user_message)
 
         structured_llm = self.base_llm.with_structured_output(SupportChatBotState)
@@ -86,16 +85,24 @@ class SupportChatBot(object):
         # 4. Invoke local model and return instantiated Pydantic object
         updated_state: SupportChatBotState = structured_llm.invoke(messages)
         print("Message is processed.")
-        print("Updated state:", updated_state.model_dump())
+        print("Updated state:", updated_state.model_dump_json(indent=2))
         return updated_state
 
     def validate_and_correct(self, updated_state):
-        if self.current_state.primary_focus_intent == "PROMO_CODE_ERRORS":
-            if self.current_state.promo_code_errors.status == TaskStatus.COLLECTING_SLOTS and self.current_state.promo_code_errors.promo_code is not None:
-                self.current_state.promo_code_errors.status = TaskStatus.CHECKING_WITH_BACKEND
-        self.prev_state = self.current_state
+        if updated_state.primary_focus_intent == "PROMO_CODE_ERRORS":
+            if (updated_state.promo_code_errors.status == TaskStatus.COLLECTING_SLOTS and
+                    updated_state.promo_code_errors.promo_code is not None):
+                updated_state.promo_code_errors.status = TaskStatus.CHECKING_WITH_BACKEND
+        elif updated_state.primary_focus_intent == "CHANGE_DELIVERY_ADDRESS":
+            if (updated_state.change_delivery_address.status == TaskStatus.COLLECTING_SLOTS and
+                    updated_state.change_delivery_address.order_id is not None and
+                    updated_state.change_delivery_address.new_address is not None):
+                updated_state.change_delivery_address.status = TaskStatus.CHECKING_WITH_BACKEND
+        else:
+            pass
         self.current_state = updated_state
         print("Post validation and correction")
+        print("Current state:", self.current_state.model_dump_json(indent=2))
         return None
 
     def get_promo_code_policy(self, promo_code):
@@ -111,12 +118,19 @@ class SupportChatBot(object):
     def get_cart_value(self):
         return 1200
 
+    def is_eligibile_for_address_change(self, order_id):
+        return True, None
+
+    def update_delivery_address(self, order_id, new_address):
+        return True
+
     def generate_responses(self):
         responses = []
         if self.current_state.primary_focus_intent == "PROMO_CODE_ERRORS":
-            if self.current_state.promo_code_errors.status == TaskStatus.COLLECTING_SLOTS and self.current_state.promo_code_errors.promo_code is None:
-                responses.append("Could you please share the promo code ?")
-            if self.current_state.promo_code_errors.status == TaskStatus.CHECKING_WITH_BACKEND:
+            if self.current_state.promo_code_errors.status == TaskStatus.COLLECTING_SLOTS:
+                if self.current_state.promo_code_errors.promo_code is None:
+                    responses.append("Could you please share the promo code ?")
+            elif self.current_state.promo_code_errors.status == TaskStatus.CHECKING_WITH_BACKEND:
                 responses.append("I'm checking with the backend ...")
                 promo_code_policy = self.get_promo_code_policy(self.current_state.promo_code_errors.promo_code)
                 print("promo_code_policy:", promo_code_policy)
@@ -126,6 +140,38 @@ class SupportChatBot(object):
                 if cart_value < promo_code_policy["minimum_cart_value"]:
                     responses.append("Your cart value is lower than the promo code policy. Please add %d rupees worth of more items." % (promo_code_policy["minimum_cart_value"]-cart_value))
                 self.current_state.promo_code_errors.status = TaskStatus.COMPLETED
+        elif self.current_state.primary_focus_intent == "CHANGE_DELIVERY_ADDRESS":
+            if self.current_state.change_delivery_address.status == TaskStatus.COLLECTING_SLOTS:
+                missing_fields = []
+                if self.current_state.change_delivery_address.order_id is None:
+                    missing_fields.append("order id")
+                if self.current_state.change_delivery_address.new_address is None:
+                    missing_fields.append("delivery address")
+                responses.append("Could you please share %s ?" % " and ".join(missing_fields))
+            elif self.current_state.change_delivery_address.status == TaskStatus.CHECKING_WITH_BACKEND:
+                responses.append("I'm checking with the backend ...")
+                (is_eligible, reason) = self.is_eligibile_for_address_change(self.current_state.change_delivery_address.order_id)
+                self.current_state.change_delivery_address.is_address_eligible_for_change = is_eligible
+                if is_eligible:
+                    responses.append("Your order is eligible for the address change.")
+                    self.current_state.change_delivery_address.status = TaskStatus.READY_FOR_EXECUTION
+                    responses.append("Updating the delivery address...")
+                    address_updated = self.update_delivery_address(order_id=self.current_state.change_delivery_address.order_id,
+                                                    new_address=self.current_state.change_delivery_address.new_address)
+                    if address_updated:
+                        responses.append("Your address has been updated.")
+                    else:
+                        responses.append("Your address updation encountered an error. Backend team is looking into it...")
+                    self.current_state.change_delivery_address.status = TaskStatus.COMPLETED
+                    self.current_state.active_intents.remove("CHANGE_DELIVERY_ADDRESS")
+                else:
+                    responses.append("Your order is not eligible for the address change as %s." % reason)
+                    self.current_state.change_delivery_address.status = TaskStatus.FAILED
+                    self.current_state.active_intents.remove("CHANGE_DELIVERY_ADDRESS")
+                    self.current_state.blocked_intents.append("CHANGE_DELIVERY_ADDRESS")
+
+        print("Post generating responses")
+        print("Current state:", self.current_state.model_dump_json(indent=2))
         return responses
 
     def respond(self, user_message):
@@ -135,7 +181,7 @@ class SupportChatBot(object):
         self.conversation_history.append(bot_response)
         return bot_response
 
-if __name__ == '__main__':
+if __name__ == '__main2__':
     support_chatbot = SupportChatBot()
     user_message = "I’m getting an error while applying promo code"
     print("User: ", user_message)
@@ -149,3 +195,19 @@ if __name__ == '__main__':
     bot_responses = support_chatbot.respond(user_message)
     for bot_response in bot_responses:
         print("Bot: ", bot_response)
+
+if __name__ == '__main__':
+    support_chatbot = SupportChatBot()
+    user_message = "I want to change the delivery address for my last order"
+    print("User: ", user_message)
+    #user_message = sys.stdin.readline().strip()
+    bot_responses = support_chatbot.respond(user_message)
+    for bot_response in bot_responses:
+        print("Bot: ", bot_response)
+
+    user_message = "My order id is ORD#20260829113300 and the new address is Satyam Park, 80 Feet Road, Rajkot 360003"
+    print("User: ", user_message)
+    bot_responses = support_chatbot.respond(user_message)
+    for bot_response in bot_responses:
+        print("Bot: ", bot_response)
+
