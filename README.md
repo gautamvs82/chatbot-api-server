@@ -20,4 +20,4 @@ A standard Python project built using PyCharm.
    pytest
    ```
 Run the HTTP server
-uvicorn main:app --host 0.0.0.0 --port 5090
+uvicorn chatbot.main:app --host 0.0.0.0 --port 5090
