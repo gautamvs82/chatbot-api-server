@@ -19,3 +19,5 @@ A standard Python project built using PyCharm.
    ```bash
    pytest
    ```
+Run the HTTP server
+uvicorn main:app --host 0.0.0.0 --port 5090
