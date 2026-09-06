@@ -13,8 +13,6 @@ authors = [
     { name = "Gautam Solanki", email = "gautamvs@gmail.com" }
 ]
 dependencies = [
-    # Add external dependencies here, e.g.:
-    # "requests>=2.31.0",
     "fastapi>=0.141.1",
     "psycopg>=3.3.5",
     "psycopg-binary>=3.3.5",
