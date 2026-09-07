@@ -14,10 +14,13 @@ authors = [
 ]
 dependencies = [
     "fastapi>=0.141.1",
+    "langchain-core>=1.6.2",
+    "langchain-ollama>=1.1.0",
     "psycopg>=3.3.5",
     "psycopg-binary>=3.3.5",
     "pydantic-settings>=2.15.0",
     "sqlmodel>=0.0.42",
+    "sse-starlette>=3.4.11",
     "uvicorn>=0.52.4",
 ]
 

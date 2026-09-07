@@ -77,6 +77,12 @@ class RelationalDatabase:
                 return results[0].status[-1]
         return None
 
+    def get_conversation_state(self, username, conversation_id):
+        return {}
+
+    def update_conversation_state(self, state):
+        return True
+
 if __name__ == "__main__":
     relational_database = RelationalDatabase.get_instance()
     conversation_status = relational_database.get_conversation_status(username="jerry.mouse", conversation_id="CONV#20260906172340")
