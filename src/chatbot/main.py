@@ -56,7 +56,8 @@ async def update_conversation(request_payload: UpdateConversationRequest):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Bad Request (Missing parameters)")
     try:
         chatbot_conversation = ChatBotConversation()
-        chatbot_conversation.update(request_payload.username, request_payload.conversation_id, request_payload.message)
+        chatbot_conversation.update(request_payload.username, request_payload.conversation_id, request_payload.message,
+                                    request_payload.message_id, request_payload.sent_at)
         return EventSourceResponse(chatbot_conversation.generate_responses(request_payload.username, request_payload.conversation_id))
     except Exception as e:
         print("Exception while updating conversation: ", e)
@@ -64,4 +65,4 @@ async def update_conversation(request_payload: UpdateConversationRequest):
 
 
 if __name__ == "__main__":
-    uvicorn.run("chatbot.main:app", host="0.0.0.0", port=5090, reload=True)
+    uvicorn.run("chatbot.main:app", host="0.0.0.0", port=5090, reload=False)
