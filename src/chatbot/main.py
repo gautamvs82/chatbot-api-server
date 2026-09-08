@@ -24,6 +24,18 @@ class UpdateConversationRequest(BaseModel):
     message: str
     sent_at: str
 
+class CloseConversationRequest(BaseModel):
+    username: str
+    conversation_id: str
+    closed_by: str
+    close_reason: str
+
+class CloseConversationResponse(BaseModel):
+    username: str
+    conversation_id: str
+    closed_by: str
+    close_reason: str
+    closed_at: str
 
 @app.post("/api/create-conversation", response_model=CreateConversationResponse)
 def create_conversation(request_payload: CreateConversationRequest) -> CreateConversationResponse:
@@ -56,11 +68,41 @@ async def update_conversation(request_payload: UpdateConversationRequest):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Bad Request (Missing parameters)")
     try:
         chatbot_conversation = ChatBotConversation()
+        if chatbot_conversation.is_closed(request_payload.username, request_payload.conversation_id):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Bad Request (Attempting to update a closed conversation)")
         chatbot_conversation.update(request_payload.username, request_payload.conversation_id, request_payload.message,
                                     request_payload.message_id, request_payload.sent_at)
         return EventSourceResponse(chatbot_conversation.generate_responses(request_payload.username, request_payload.conversation_id))
+    except HTTPException as e:
+        print("Exception while updating conversation: ", e)
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
     except Exception as e:
         print("Exception while updating conversation: ", e)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error while updating conversation")
+
+@app.post("/api/close-conversation", response_model=CloseConversationResponse)
+async def close_conversation(request_payload: CloseConversationRequest) -> CloseConversationResponse:
+    if request_payload is None or request_payload.username is None or request_payload.conversation_id is None \
+            or request_payload.closed_by is None or request_payload.close_reason is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Bad Request (Missing parameters)")
+    try:
+        chatbot_conversation = ChatBotConversation()
+        if chatbot_conversation.is_closed(request_payload.username, request_payload.conversation_id):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Bad Request (Attempting to close a closed conversation)")
+        closed_at = chatbot_conversation.close(request_payload.username, request_payload.conversation_id,
+                                                request_payload.closed_by, request_payload.close_reason)
+        if closed_at:
+            return CloseConversationResponse(username=request_payload.username,
+                                             conversation_id=request_payload.conversation_id,
+                                             closed_by=request_payload.closed_by,
+                                             close_reason=request_payload.close_reason,
+                                             closed_at=closed_at)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error while closing conversation")
+    except HTTPException as e:
+        print("Exception while close conversation: ", e)
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+    except Exception as e:
+        print("Exception while closing conversation: ", e)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error while updating conversation")
 
 

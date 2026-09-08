@@ -136,6 +136,34 @@ class RelationalDatabase:
                 return True
         return False
 
+    def add_close_status(self, username, conversation_id, closed_by, close_reason, closed_at):
+        with Session(self.engine) as session:
+            statement = select(Conversation).where(Conversation.username == username,
+                                                   Conversation.conversation_id == conversation_id)
+            conversation:Conversation = session.exec(statement).first()
+            if conversation:
+                new_statuses = []
+                for status in conversation.status:
+                    new_statuses.append(status)
+                close_status = ConversationStatusClosed(closed_by=closed_by, close_reason=close_reason, closed_at=closed_at)
+                new_statuses.append(close_status.model_dump())
+                conversation.status = new_statuses
+                session.add(conversation)
+                session.commit()
+                session.refresh(conversation)
+                print("\nAdded status to the conversation:", conversation.conversation_id, " status: ", conversation.status)
+                return True
+        return False
+
+    def get_last_status(self, username, conversation_id):
+        with Session(self.engine) as session:
+            statement = select(Conversation).where(Conversation.username == username,
+                                                   Conversation.conversation_id == conversation_id)
+            conversation:Conversation = session.exec(statement).first()
+            if conversation and conversation.status and len(conversation.status) > 0:
+                return conversation.status[-1]
+        return None
+
 if __name__ == "__main2__":
     relational_database = RelationalDatabase.get_instance()
     conversation_status = relational_database.get_conversation_status(username="jerry.mouse", conversation_id="CONV#20260906172340")

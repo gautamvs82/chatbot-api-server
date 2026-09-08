@@ -268,6 +268,20 @@ class ChatBotConversation:
         updated_state = self.update_chat_bot_state(username, conversation_id, message, message_id, sent_at)
         self.validate_and_correct(username, conversation_id, updated_state)
 
+    def close(self, username, conversation_id, closed_by, close_reason):
+        now = datetime.now()
+        closed_at = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+        if self.relational_database.add_close_status(username, conversation_id, closed_by, close_reason, closed_at):
+            return closed_at
+        else:
+            return None
+
+    def is_closed(self, username, conversation_id):
+        last_status = self.relational_database.get_last_status(username=username, conversation_id=conversation_id)
+        if last_status is None or last_status["status"] == "closed":
+            return True
+        else:
+            return False
 
 if __name__ == "__main__":
     conversation = ChatBotConversation()
