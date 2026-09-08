@@ -12,7 +12,7 @@ class ChatBotConversation:
         self.relational_database = RelationalDatabase.get_instance()
         self.conversation_history = []
         self.current_chat_bot_state = ChatBotState()
-        self.model_name = "llama3.1:8b"
+        self.model_name = "llama3.2:3b"
         self.base_llm = ChatOllama(
             model=self.model_name,
             temperature=0.0,

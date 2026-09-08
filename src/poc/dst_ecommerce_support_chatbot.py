@@ -1,5 +1,6 @@
 import json
 import sys
+import time
 from enum import Enum
 from typing import List, Optional
 
@@ -49,12 +50,17 @@ class SupportChatBot(object):
     def __init__(self):
         self.conversation_history = []
         self.current_state = SupportChatBotState()
-        self.model_name = "llama3.1:8b"
+        self.model_name = "llama3.2:3b"
         self.base_llm = ChatOllama(
             model=self.model_name,
             temperature=0.0,
-            validate_model_on_init=True,
             keep_alive="30m",
+            # 1. Skip network/validation check on every startup
+            validate_model_on_init=False,
+            # 2. Key performance tweaks passed directly to Ollama
+            num_ctx=2048,  # Default is 2048/4096; keep as small as possible for your task
+            num_gpu=-1,  # Force offloading all layers to GPU (-1 = all)
+            num_thread=8,  # Match physical CPU cores if CPU fallback occurs
         )
         self.UPDATE_STATE_PROMPT_FILE_NAME= "./resources/dst_ecommerce_support_chatbot_prompt.txt"
 
@@ -197,22 +203,28 @@ class SupportChatBot(object):
             self.conversation_history.append(("System", bot_response))
         return bot_responses
 
-if __name__ == '__main2__':
+if __name__ == '__main__':
     support_chatbot = SupportChatBot()
-    user_message = "I’m getting an error while applying promo code"
+    user_message = "I'm getting an error while applying promo code"
     print("User: ", user_message)
     #user_message = sys.stdin.readline().strip()
+    start_time = time.time()
     bot_responses = support_chatbot.respond(user_message)
     for bot_response in bot_responses:
         print("Bot: ", bot_response)
+    end_time = time.time()
+    print("Time taken: ", end_time - start_time)
 
     user_message = "The promo code is WINTER10"
     print("User: ", user_message)
+    start_time = time.time()
     bot_responses = support_chatbot.respond(user_message)
     for bot_response in bot_responses:
         print("Bot: ", bot_response)
+    end_time = time.time()
+    print("Time taken: ", end_time - start_time)
 
-if __name__ == '__main__':
+if __name__ == '__main2__':
     support_chatbot = SupportChatBot()
     user_message = "I want to change the delivery address for my last order"
     print("User: ", user_message)
