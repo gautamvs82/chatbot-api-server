@@ -266,6 +266,8 @@ class ChatBotConversation:
                                                                        conversation_id=conversation_id)
         chat_bot_state = ChatBotState()
         self.current_chat_bot_state = chat_bot_state.model_copy(update=initial_data, deep=True)
+        self.conversation_history = self.relational_database.get_message_history(username=username,
+                                                                                 conversation_id=conversation_id)
         updated_state = self.update_chat_bot_state(username, conversation_id, message, message_id, sent_at)
         self.validate_and_correct(username, conversation_id, updated_state)
 

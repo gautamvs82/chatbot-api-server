@@ -164,6 +164,17 @@ class RelationalDatabase:
                 return conversation.status[-1]
         return None
 
+    def get_message_history(self, username, conversation_id):
+        message_history = []
+        with Session(self.engine) as session:
+            statement = select(Conversation).where(Conversation.username == username,
+                                                   Conversation.conversation_id == conversation_id)
+            conversation:Conversation = session.exec(statement).first()
+            if conversation:
+                for message in conversation.messages:
+                    message_history.append((message["sender"], message["message"]))
+        return message_history
+
 if __name__ == "__main2__":
     relational_database = RelationalDatabase.get_instance()
     conversation_status = relational_database.get_conversation_status(username="jerry.mouse", conversation_id="CONV#20260906172340")
@@ -180,7 +191,7 @@ if __name__ == "__main2__":
     current_data = relational_database.get_chat_bot_state(username="jerry.mouse", conversation_id="CONV#20260906172340")
     print("current_data", current_data)
 
-if __name__ == "__main__":
+if __name__ == "__main3__":
     relational_database = RelationalDatabase.get_instance()
     username = "jerry.mouse"
     conversation_id = "CONV#20260906172340"
@@ -192,3 +203,10 @@ if __name__ == "__main__":
     }
     status = relational_database.add_message(username, conversation_id, message_data)
     print("status", status)
+
+if __name__ == "__main__":
+    relational_database = RelationalDatabase.get_instance()
+    username = "jerry.mouse"
+    conversation_id = "CONV#20260906172340"
+    message_history = relational_database.get_message_history(username, conversation_id)
+    print("message_history:", message_history)
