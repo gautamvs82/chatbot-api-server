@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 import uvicorn
@@ -6,6 +7,14 @@ import uvicorn
 from .chatbot_conversation import ChatBotConversation
 
 app = FastAPI(title="Chatbot API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "https://localhost:5173"], # Your frontend URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class CreateConversationRequest(BaseModel):
     username: str

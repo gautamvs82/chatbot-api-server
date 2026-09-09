@@ -1,3 +1,4 @@
+import json
 import time
 from datetime import datetime
 
@@ -120,7 +121,7 @@ class ChatBotConversation:
                 "sent_at": sent_at
             }
         }
-        return message_update
+        return json.dumps(message_update)
 
     def generate_message_complete(self, username, conversation_id):
         message_complete = {
@@ -131,7 +132,7 @@ class ChatBotConversation:
                 "status": "done"
             }
         }
-        return message_complete
+        return json.dumps(message_complete)
 
     def get_promo_code_policy(self, promo_code):
         policy_details = {
